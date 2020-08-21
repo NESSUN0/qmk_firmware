@@ -87,35 +87,26 @@ static void gpt_cb8(GPTDriver *gptp);
 #define START_CHANNEL_1()        \
     gptStart(&GPTD6, &gpt6cfg1); \
     gptStartContinuous(&GPTD6, 2U)
-#if STM32_GPT_USE_TIM7
-#   define START_CHANNEL_2()        \
+#define START_CHANNEL_2()        \
     gptStart(&GPTD7, &gpt7cfg1); \
     gptStartContinuous(&GPTD7, 2U)
-#endif
 #define STOP_CHANNEL_1() gptStopTimer(&GPTD6)
-#if STM32_GPT_USE_TIM7
-#   define STOP_CHANNEL_2() gptStopTimer(&GPTD7)
-#endif
+#define STOP_CHANNEL_2() gptStopTimer(&GPTD7)
 #define RESTART_CHANNEL_1() \
     STOP_CHANNEL_1();       \
     START_CHANNEL_1()
-#if STM32_GPT_USE_TIM7 
-#   define RESTART_CHANNEL_2()  \
-    STOP_CHANNEL_2();          \
+#define RESTART_CHANNEL_2() \
+    STOP_CHANNEL_2();       \
     START_CHANNEL_2()
-#endif
 #define UPDATE_CHANNEL_1_FREQ(freq)              \
     gpt6cfg1.frequency = freq * DAC_BUFFER_SIZE; \
     RESTART_CHANNEL_1()
-#if STM32_GPT_USE_TIM7
-#   define UPDATE_CHANNEL_2_FREQ(freq)           \
+#define UPDATE_CHANNEL_2_FREQ(freq)              \
     gpt7cfg1.frequency = freq * DAC_BUFFER_SIZE; \
     RESTART_CHANNEL_2()
-#endif
 #define GET_CHANNEL_1_FREQ (uint16_t)(gpt6cfg1.frequency * DAC_BUFFER_SIZE)
-#if STM32_GPT_USE_TIM7
-#   define GET_CHANNEL_2_FREQ (uint16_t)(gpt7cfg1.frequency * DAC_BUFFER_SIZE)
-#endif
+#define GET_CHANNEL_2_FREQ (uint16_t)(gpt7cfg1.frequency * DAC_BUFFER_SIZE)
+
 /*
  * GPT6 configuration.
  */
@@ -131,12 +122,10 @@ GPTConfig gpt6cfg1 = {.frequency = 440U * DAC_BUFFER_SIZE,
                       .cr2       = TIM_CR2_MMS_1, /* MMS = 010 = TRGO on Update Event.    */
                       .dier      = 0U};
 
-#if STM32_GPT_USE_TIM7
- GPTConfig gpt7cfg1 = {.frequency = 440U * DAC_BUFFER_SIZE,
-                       .callback  = NULL,
-                       .cr2       = TIM_CR2_MMS_1, /* MMS = 010 = TRGO on Update Event.    */
-                       .dier      = 0U};
-#endif
+GPTConfig gpt7cfg1 = {.frequency = 440U * DAC_BUFFER_SIZE,
+                      .callback  = NULL,
+                      .cr2       = TIM_CR2_MMS_1, /* MMS = 010 = TRGO on Update Event.    */
+                      .dier      = 0U};
 
 GPTConfig gpt8cfg1 = {.frequency = 10,
                       .callback  = gpt_cb8,
@@ -219,14 +208,12 @@ static const dacsample_t dac_buffer[DAC_BUFFER_SIZE] = {
     [DAC_BUFFER_SIZE / 2 ... DAC_BUFFER_SIZE - 1] = 0,
 };
 
-#if STM32_GPT_USE_TIM7
-//squarewave
+// squarewave
 static const dacsample_t dac_buffer_2[DAC_BUFFER_SIZE] = {
     // opposite of dac_buffer above
     [0 ... DAC_BUFFER_SIZE / 2 - 1]               = 0,
     [DAC_BUFFER_SIZE / 2 ... DAC_BUFFER_SIZE - 1] = DAC_SAMPLE_MAX,
 };
-#endif
 
 /*
  * DAC streaming callback.
@@ -255,11 +242,9 @@ static const DACConfig dac1cfg1 = {.init = DAC_SAMPLE_MAX, .datamode = DAC_DHRM_
 
 static const DACConversionGroup dacgrpcfg1 = {.num_channels = 1U, .end_cb = end_cb1, .error_cb = error_cb1, .trigger = DAC_TRG(0)};
 
-#if STM32_GPT_USE_TIM7
 static const DACConfig dac1cfg2 = {.init = DAC_SAMPLE_MAX, .datamode = DAC_DHRM_12BIT_RIGHT};
 
 static const DACConversionGroup dacgrpcfg2 = {.num_channels = 1U, .end_cb = end_cb1, .error_cb = error_cb1, .trigger = DAC_TRG(0)};
-#endif
 
 void audio_init() {
     if (audio_initialized) {
@@ -284,27 +269,22 @@ void audio_init() {
      * by the Reference Manual.
      */
     palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
-    dacStart(&DACD1, &dac1cfg1);
-#if STM32_GPT_USE_TIM7
     palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
+    dacStart(&DACD1, &dac1cfg1);
     dacStart(&DACD2, &dac1cfg2);
-#endif
-    
+
     /*
      * Starting GPT6/7 driver, it is used for triggering the DAC.
      */
     START_CHANNEL_1();
-#if STM32_GPT_USE_TIM7
     START_CHANNEL_2();
-#endif
+
     /*
      * Starting a continuous conversion.
      */
     dacStartConversion(&DACD1, &dacgrpcfg1, (dacsample_t *)dac_buffer, DAC_BUFFER_SIZE);
-#if STM32_GPT_USE_TIM7
     dacStartConversion(&DACD2, &dacgrpcfg2, (dacsample_t *)dac_buffer_2, DAC_BUFFER_SIZE);
-#endif
- 
+
     audio_initialized = true;
 
     if (audio_config.enable) {
@@ -323,9 +303,7 @@ void stop_all_notes() {
     voices = 0;
 
     gptStopTimer(&GPTD6);
-#if STM32_GPT_USE_TIM7
     gptStopTimer(&GPTD7);
-#endif 
     gptStopTimer(&GPTD8);
 
     playing_notes = false;
@@ -369,9 +347,7 @@ void stop_note(float freq) {
         }
         if (voices == 0) {
             STOP_CHANNEL_1();
-#if STM32_GPT_USE_TIM7
             STOP_CHANNEL_2();
-#endif
             gptStopTimer(&GPTD8);
             frequency     = 0;
             frequency_alt = 0;
@@ -440,14 +416,13 @@ static void gpt_cb8(GPTDriver *gptp) {
                 if (freq_alt < 30.517578125) {
                     freq_alt = 30.52;
                 }
-#if STM32_GPT_USE_TIM7
+
                 if (GET_CHANNEL_2_FREQ != (uint16_t)freq_alt) {
                     UPDATE_CHANNEL_2_FREQ(freq_alt);
                 } else {
                     RESTART_CHANNEL_2();
                 }
                 // note_timbre;
-#endif
             }
 
             if (polyphony_rate > 0) {
@@ -530,9 +505,7 @@ static void gpt_cb8(GPTDriver *gptp) {
 
             if (GET_CHANNEL_1_FREQ != (uint16_t)freq) {
                 UPDATE_CHANNEL_1_FREQ(freq);
-#if STM32_GPT_USE_TIM7
                 UPDATE_CHANNEL_2_FREQ(freq);
-#endif
             }
             // note_timbre;
         } else {
@@ -558,9 +531,7 @@ static void gpt_cb8(GPTDriver *gptp) {
                     current_note = 0;
                 } else {
                     STOP_CHANNEL_1();
-#if STM32_GPT_USE_TIM7
                     STOP_CHANNEL_2();
-#endif
                     // gptStopTimer(&GPTD8);
                     playing_notes = false;
                     return;
@@ -619,9 +590,7 @@ void play_note(float freq, int vol) {
         gptStart(&GPTD8, &gpt8cfg1);
         gptStartContinuous(&GPTD8, 2U);
         RESTART_CHANNEL_1();
-#if STM32_GPT_USE_TIM7
         RESTART_CHANNEL_2();
-#endif
     }
 }
 
@@ -652,9 +621,7 @@ void play_notes(float (*np)[][2], uint16_t n_count, bool n_repeat) {
         gptStart(&GPTD8, &gpt8cfg1);
         gptStartContinuous(&GPTD8, 2U);
         RESTART_CHANNEL_1();
-#if STM32_GPT_USE_TIM7
         RESTART_CHANNEL_2();
-#endif
     }
 }
 
